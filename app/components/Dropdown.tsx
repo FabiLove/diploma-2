@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,18 +12,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function Dropdown() {
+export function Dropdown({ onAspectRatioChange }) {
   const [position, setPosition] = React.useState("1:1");
+
+  const handleChange = (value) => {
+    setPosition(value);
+    onAspectRatioChange(value);
+  };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button>Расширение</Button>
+        <Button>Расширение: {position}</Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
-        <DropdownMenuLabel>Panel Position</DropdownMenuLabel>
+        <DropdownMenuLabel>Соотношение сторон</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup value={position} onValueChange={setPosition}>
+        <DropdownMenuRadioGroup value={position} onValueChange={handleChange}>
           <DropdownMenuRadioItem value="1:1">1:1</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="16:9">16:9</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="3:4">3:4</DropdownMenuRadioItem>
@@ -35,4 +39,3 @@ export function Dropdown() {
     </DropdownMenu>
   );
 }
-

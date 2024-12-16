@@ -1,64 +1,68 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { CldImage } from "next-cloudinary";
+import { CldImage, CldUploadWidget } from "next-cloudinary";
 
-export function ImageUploader() {
-  const [image, setImage] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+export function ImageUploader({
+  width,
+  height,
+  aspectRatio,
+  removeBackground,
+}) {
+  const [publicId, setPublicId] = useState("");
+  const [originalImage, setOriginalImage] = useState("");
 
-  const handleUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImage(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleUpload = (result) => {
+    setPublicId(result.info.public_id);
+    setOriginalImage(result.info.secure_url);
   };
 
-  const handleButtonClick = () => {
-    fileInputRef.current?.click();
+  const getTransformation = () => {
+    let transformation = `c_fill,w_${width},h_${height},ar_${aspectRatio.replace(
+      ":",
+      ":"
+    )},g_auto`;
+    if (removeBackground) {
+      transformation += ",e_background_removal";
+    }
+    return transformation;
   };
 
   return (
     <div className="flex flex-col items-center space-y-4">
-      <Button
-        onClick={handleButtonClick}
-        className="flex items-center space-x-2"
+      <CldUploadWidget
+        uploadPreset="FabiLinda_preset_1"
+        onUpload={handleUpload}
       >
-        <span>Upload Image</span>
-      </Button>
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleUpload}
-        accept="image/*"
-        className="hidden"
-        aria-label="Upload image"
-      />
+        {({ open }) => (
+          <Button onClick={() => open()}>Загрузить изображение</Button>
+        )}
+      </CldUploadWidget>
 
-      <CldImage
-        src="<Your Public ID>"
-        width="300"
-        height="300"
-        crop="fill"
-        alt=""
-        sizes="100vw"
-      />
-
-      {image && (
-        <div className="mt-4">
-          <img
-            src={image}
-            alt="Uploaded preview"
-            width={320}
-            height={240}
-            className="max-w-xs max-h-64 object-contain rounded-lg shadow-md"
-          />
+      {publicId && (
+        <div className="mt-4 space-y-4">
+          <div>
+            <h3 className="text-lg font-semibold">Оригинальное изображение:</h3>
+            <img
+              src={originalImage}
+              alt="Original"
+              className="max-w-xs max-h-64 object-contain rounded-lg shadow-md"
+            />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold">Обработанное изображение:</h3>
+            <CldImage
+              src={publicId}
+              width={width}
+              height={height}
+              crop="fill"
+              alt="Processed"
+              sizes="100vw"
+              className="rounded-lg shadow-md"
+              transformation={getTransformation()}
+            />
+          </div>
         </div>
       )}
     </div>
