@@ -16,16 +16,23 @@ export function ImageUploader({
   const handleUpload = (result) => {
     setPublicId(result.info.public_id);
     setOriginalImage(result.info.secure_url);
+    console.log(result, "result");
   };
 
   const getTransformation = () => {
     let transformation = `c_fill,w_${width},h_${height},ar_${aspectRatio.replace(
       ":",
       ":"
-    )},g_auto`;
+    )}`;
+
     if (removeBackground) {
-      transformation += ",e_background_removal";
+      // Add background removal as the first component in the chain
+      transformation = `e_background_removal/${transformation}`;
     }
+
+    // Add gravity auto at the end
+    transformation += ",g_auto";
+
     return transformation;
   };
 
@@ -33,7 +40,7 @@ export function ImageUploader({
     <div className="flex flex-col items-center space-y-4">
       <CldUploadWidget
         uploadPreset="FabiLinda_preset_1"
-        onUpload={handleUpload}
+        onSuccess={handleUpload}
       >
         {({ open }) => (
           <Button onClick={() => open()}>Загрузить изображение</Button>
