@@ -4,12 +4,7 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { CldImage, CldUploadWidget } from "next-cloudinary";
 
-export function ImageUploader({
-  width,
-  height,
-  aspectRatio,
-  removeBackground,
-}) {
+export function ImageUploader({ width, height, aspectRatio }) {
   const [publicId, setPublicId] = useState("");
   const [originalImage, setOriginalImage] = useState("");
 
@@ -24,11 +19,6 @@ export function ImageUploader({
       ":",
       ":"
     )}`;
-
-    if (removeBackground) {
-      // Add background removal as the first component in the chain
-      transformation = `e_background_removal/${transformation}`;
-    }
 
     // Add gravity auto at the end
     transformation += ",g_auto";
