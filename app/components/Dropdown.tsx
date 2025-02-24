@@ -1,41 +1,40 @@
 "use client";
 
-import * as React from "react";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
+
+const aspectRatios = [
+  { value: "1:1", label: "1:1" },
+  { value: "4:3", label: "4:3" },
+  { value: "16:9", label: "16:9" },
+  { value: "3:2", label: "3:2" },
+];
 
 export function Dropdown({ onAspectRatioChange }) {
-  const [position, setPosition] = React.useState("1:1");
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState(
+    aspectRatios[0].value
+  );
 
-  const handleChange = (value) => {
-    setPosition(value);
+  const handleAspectRatioChange = (value) => {
+    setSelectedAspectRatio(value);
     onAspectRatioChange(value);
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button>Расширение: {position}</Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56">
-        <DropdownMenuLabel>Соотношение сторон</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup value={position} onValueChange={handleChange}>
-          <DropdownMenuRadioItem value="1:1">1:1</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="16:9">16:9</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="3:4">3:4</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="9:16">9:16</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="4:3">4:3</DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Select value={selectedAspectRatio} onValueChange={handleAspectRatioChange}>
+      <SelectTrigger>Соотношение сторон</SelectTrigger>
+      <SelectContent>
+        {aspectRatios.map((ratio) => (
+          <SelectItem key={ratio.value} value={ratio.value}>
+            {ratio.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

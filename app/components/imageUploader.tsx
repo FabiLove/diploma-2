@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CldImage, CldUploadWidget } from "next-cloudinary";
 
-export function ImageUploader({ width, height, aspectRatio }) {
+export function ImageUploader({ width, height, aspectRatio, mode }) {
   const [publicId, setPublicId] = useState("");
   const [originalImage, setOriginalImage] = useState("");
 
@@ -15,10 +15,13 @@ export function ImageUploader({ width, height, aspectRatio }) {
   };
 
   const getTransformation = () => {
-    let transformation = `c_fill,w_${width},h_${height},ar_${aspectRatio.replace(
-      ":",
-      ":"
-    )}`;
+    let transformation = "";
+
+    if (mode === "dimensions") {
+      transformation = `c_fill,w_${width},h_${height}`;
+    } else if (mode === "aspectRatio") {
+      transformation = `c_fill,ar_${aspectRatio.replace(":", ":")}`;
+    }
 
     // Add gravity auto at the end
     transformation += ",g_auto";
@@ -42,7 +45,7 @@ export function ImageUploader({ width, height, aspectRatio }) {
           <div>
             <h3 className="text-lg font-semibold">Оригинальное изображение:</h3>
             <img
-              src={originalImage}
+              src={originalImage || "/placeholder.svg"}
               alt="Original"
               className="max-w-xs max-h-64 object-contain rounded-lg shadow-md"
             />
@@ -51,8 +54,8 @@ export function ImageUploader({ width, height, aspectRatio }) {
             <h3 className="text-lg font-semibold">Обработанное изображение:</h3>
             <CldImage
               src={publicId}
-              width={width}
-              height={height}
+              width={mode === "dimensions" ? width : 500}
+              height={mode === "dimensions" ? height : 500}
               crop="fill"
               alt="Processed"
               sizes="100vw"
