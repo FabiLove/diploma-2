@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ImageUploader } from "./imageUploader";
@@ -12,6 +12,26 @@ export default function Sidebar() {
   const [height, setHeight] = useState(300);
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [mode, setMode] = useState("dimensions"); // 'dimensions' or 'aspectRatio'
+
+  useEffect(() => {
+    if (mode === "aspectRatio") {
+      const [aspectWidth, aspectHeight] = aspectRatio.split(":").map(Number);
+      const newWidth = 300; // Base width
+      const newHeight = Math.round((newWidth / aspectWidth) * aspectHeight);
+      setWidth(newWidth);
+      setHeight(newHeight);
+    }
+    console.log("Sidebar state:", { mode, width, height, aspectRatio });
+  }, [mode, aspectRatio, width, height]);
+
+  const handleAspectRatioChange = (newAspectRatio) => {
+    setAspectRatio(newAspectRatio);
+    const [aspectWidth, aspectHeight] = newAspectRatio.split(":").map(Number);
+    const newWidth = 300; // Base width
+    const newHeight = Math.round((newWidth / aspectWidth) * aspectHeight);
+    setWidth(newWidth);
+    setHeight(newHeight);
+  };
 
   return (
     <div className="flex h-[94vh]">
@@ -58,7 +78,7 @@ export default function Sidebar() {
 
             {mode === "aspectRatio" && (
               <div className="space-y-2">
-                <Dropdown onAspectRatioChange={setAspectRatio} />
+                <Dropdown onAspectRatioChange={handleAspectRatioChange} />
               </div>
             )}
           </div>
