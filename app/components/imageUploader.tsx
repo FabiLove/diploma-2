@@ -1,32 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { CldImage, CldUploadWidget } from "next-cloudinary";
 
 export function ImageUploader({ width, height, aspectRatio, mode }) {
   const [publicId, setPublicId] = useState("");
   const [originalImage, setOriginalImage] = useState("");
+  const [transformation, setTransformation] = useState("");
+
+  useEffect(() => {
+    console.log("ImageUploader props:", { mode, width, height, aspectRatio });
+    updateTransformation();
+  }, [mode, aspectRatio, width, height]);
 
   const handleUpload = (result) => {
     setPublicId(result.info.public_id);
     setOriginalImage(result.info.secure_url);
-    console.log(result, "result");
+    console.log("Upload result:", result);
   };
 
-  const getTransformation = () => {
-    let transformation = "";
+  const updateTransformation = () => {
+    let newTransformation = `c_fill,w_${width},h_${height}`;
 
-    if (mode === "dimensions") {
-      transformation = `c_fill,w_${width},h_${height}`;
-    } else if (mode === "aspectRatio") {
-      transformation = `c_fill,ar_${aspectRatio.replace(":", ":")}`;
+    if (mode === "aspectRatio") {
+      const [aspectWidth, aspectHeight] = aspectRatio.split(":").map(Number);
+      newTransformation += `,ar_${aspectWidth}:${aspectHeight}`;
     }
 
-    // Add gravity auto at the end
-    transformation += ",g_auto";
-
-    return transformation;
+    newTransformation += ",g_auto";
+    setTransformation(newTransformation);
+    console.log("New transformation:", newTransformation);
   };
 
   return (
@@ -54,13 +58,13 @@ export function ImageUploader({ width, height, aspectRatio, mode }) {
             <h3 className="text-lg font-semibold">Обработанное изображение:</h3>
             <CldImage
               src={publicId}
-              width={mode === "dimensions" ? width : 500}
-              height={mode === "dimensions" ? height : 500}
+              width={width}
+              height={height}
               crop="fill"
               alt="Processed"
               sizes="100vw"
               className="rounded-lg shadow-md"
-              transformation={getTransformation()}
+              transformation={transformation}
             />
           </div>
         </div>
