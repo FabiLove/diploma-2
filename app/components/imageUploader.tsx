@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { CldImage, CldUploadWidget } from "next-cloudinary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,12 +43,20 @@ export function ImageUploader({ width, height, aspectRatio, mode }) {
 
   const updateTransformation = () => {
     let newTransformation = `c_fill,w_${width},h_${height}`;
+  const updateTransformation = () => {
+    let newTransformation = `c_fill,w_${width},h_${height}`;
 
+    if (mode === "aspectRatio") {
+      const [aspectWidth, aspectHeight] = aspectRatio.split(":").map(Number);
+      newTransformation += `,ar_${aspectWidth}:${aspectHeight}`;
     if (mode === "aspectRatio") {
       const [aspectWidth, aspectHeight] = aspectRatio.split(":").map(Number);
       newTransformation += `,ar_${aspectWidth}:${aspectHeight}`;
     }
 
+    newTransformation += ",g_auto";
+    setTransformation(newTransformation);
+    console.log("New transformation:", newTransformation);
     newTransformation += ",g_auto";
     setTransformation(newTransformation);
     console.log("New transformation:", newTransformation);
