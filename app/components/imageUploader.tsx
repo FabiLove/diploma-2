@@ -175,7 +175,6 @@ export function ImageUploader({ width, height, aspectRatio, mode }) {
         options={{
           sources: ["local", "url", "camera", "google_drive", "dropbox"],
           multiple: true,
-          maxFiles: 10,
           folder: "user_uploads",
         }}
       >
