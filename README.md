@@ -1,4 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Diploma Project
+
+This is a Next.js project structured for scalability.
+
+## Project Structure
+
+The project has been organized in a scalable structure:
+
+```
+app/
+├── components/
+│   ├── layout/      # Layout components (Navbar, Layout, etc.)
+│   ├── ui/          # UI components (Buttons, Forms, etc.)
+│   └── features/    # Feature-specific components
+├── context/         # React Context for global state
+├── services/        # API services
+├── utils/           # Utility functions and constants
+└── ...
+```
+
+## Scaling Guidelines
+
+### Adding New Features
+
+When adding new features, follow these guidelines:
+
+1. **Component Structure**:
+
+   - Create components in the appropriate directory
+   - Use TypeScript interfaces for props
+   - Follow the existing component patterns
+
+2. **API Integration**:
+
+   - Use the API service for all API calls
+   - Add new API endpoints to the constants file
+
+3. **State Management**:
+   - Use local React state for component-specific state
+   - Use context for application-wide state
+   - Consider adding additional contexts for complex features
+
+### Code Structure Best Practices
+
+- **Component Organization**: Group related components in feature folders
+- **Type Safety**: Use TypeScript interfaces for all props and data structures
+- **Consistent Naming**: Follow established naming conventions
+- **Code Reuse**: Extract common functionality into utility functions
+
+## Deployment
+
+To deploy the application:
+
+```bash
+# Build the application
+npm run build
+
+# Start the production server
+npm start
+```
+
+You can also use the provided Dockerfile for containerized deployment.
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
 
 ## Getting Started
 
