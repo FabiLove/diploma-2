@@ -1,101 +1,111 @@
+/* -------------------------------------------------------------------------- */
+/*  File: /app/components/imageUploader2.tsx                                  */
+/* -------------------------------------------------------------------------- */
+
 "use client";
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CldImage, CldUploadWidget } from "next-cloudinary";
+import { CldImage, CldUploadWidget, getCldImageUrl } from "next-cloudinary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X, Download, ImageIcon, EyeIcon, EyeOffIcon } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
+/* --------------------------- типы и утилиты -------------------------------- */
+type ImageEntry = {
+  publicId: string;
+  url: string;
+  width: number;
+  height: number;
+};
+
+/** Приводит цвет к формату, который Cloudinary ожидает в background-трансформации */
+const cldColor = (color: string): string | undefined => {
+  if (!color) return undefined;
+  const clean = color.replace("#", "").trim();
+
+  // если hex-код из 3 или 6 символов – добавляем префикс rgb:
+  if (/^[0-9a-f]{6}$/i.test(clean) || /^[0-9a-f]{3}$/i.test(clean)) {
+    return `rgb:${clean}`;
+  }
+  // иначе оставляем как есть (например, 'white')
+  return clean;
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Компонент                                                                 */
+/* -------------------------------------------------------------------------- */
 export function ImageUploader2({
   backgroundColor,
   preserveTransparency,
   downloadFormat,
+}: {
+  backgroundColor: string;
+  preserveTransparency: boolean;
+  downloadFormat: "png" | "jpg" | "webp";
 }) {
-  const [uploadedImages, setUploadedImages] = useState([]);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(null);
+  const [images, setImages] = useState<ImageEntry[]>([]);
+  const [current, setCurrent] = useState<number | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const handleUpload = (result) => {
-    // Handle multiple uploads
-    if (Array.isArray(result.info.secure_url)) {
-      const newImages = result.info.public_id.map((id, index) => ({
-        publicId: id,
-        originalUrl: result.info.secure_url[index],
-      }));
-      setUploadedImages((prev) => [...prev, ...newImages]);
-      if (selectedImageIndex === null && newImages.length > 0) {
-        setSelectedImageIndex(0);
-      }
-    } else {
-      // Handle single upload
-      setUploadedImages((prev) => [
-        ...prev,
-        {
-          publicId: result.info.public_id,
-          originalUrl: result.info.secure_url,
-        },
-      ]);
-      if (selectedImageIndex === null) {
-        setSelectedImageIndex(0);
-      }
-    }
+  /* ------------------------------ upload ---------------------------------- */
+  const handleUpload = (res: any) => {
+    const make = (i: any): ImageEntry => ({
+      publicId: i.public_id,
+      url: i.secure_url,
+      width: i.width,
+      height: i.height,
+    });
+
+    const batch: ImageEntry[] = Array.isArray(res.info)
+      ? res.info.map(make)
+      : [make(res.info)];
+
+    setImages((p) => [...p, ...batch]);
+    if (current === null) setCurrent(0);
   };
 
-  const removeImage = (index) => {
-    setUploadedImages((prev) => prev.filter((_, i) => i !== index));
-    if (selectedImageIndex === index) {
-      setSelectedImageIndex(uploadedImages.length > 1 ? 0 : null);
-    } else if (selectedImageIndex > index) {
-      setSelectedImageIndex(selectedImageIndex - 1);
-    }
+  const remove = (idx: number) => {
+    setImages((p) => p.filter((_, i) => i !== idx));
+    if (current === idx) setCurrent(null);
+    else if ((current ?? 0) > idx) setCurrent((s) => (s ?? 0) - 1);
   };
 
-  const downloadImage = async () => {
-    if (selectedImageIndex === null) return;
-
-    setIsDownloading(true);
+  /* ----------------------------- download --------------------------------- */
+  const download = async () => {
+    if (current === null) return;
+    setBusy(true);
 
     try {
-      const image = uploadedImages[selectedImageIndex];
+      const { publicId } = images[current];
 
-      // Создаем URL для скачивания с учетом параметров
-      let transformationString = "c_limit,w_1000";
+      /* --- URL без ресайза: сохраняем оригинал --- */
+      const url = getCldImageUrl({
+        src: publicId,
+        removeBackground: !showOriginal,
+        background: !preserveTransparency
+          ? cldColor(backgroundColor)
+          : undefined,
+        format: downloadFormat,
+      });
 
-      // Добавляем удаление фона
-      if (!showOriginal) {
-        transformationString += ",e_background_removal";
-
-        // Если указан цвет фона и не нужно сохранять прозрачность
-        if (backgroundColor && !preserveTransparency) {
-          transformationString += `,b_${backgroundColor.replace("#", "")}`;
-        }
-      }
-
-      const format = downloadFormat || "png";
-      const baseUrl = "https://res.cloudinary.com/demo/image/upload/";
-      const downloadUrl = `${baseUrl}${transformationString}/${image.publicId}.${format}`;
-
-      // Создаем ссылку для скачивания
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = `bg-removed-${
-        image.publicId.split("/").pop() || "image"
-      }.${format}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error("Error downloading image:", error);
+      const blob = await fetch(url).then((r) => r.blob());
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `bg-removed-${publicId.split("/").pop()}.${downloadFormat}`;
+      a.click();
+      URL.revokeObjectURL(a.href);
     } finally {
-      setIsDownloading(false);
+      setBusy(false);
     }
   };
 
+  /* ------------------------------- JSX ------------------------------------ */
   return (
     <div className="flex flex-col items-center space-y-4 w-full max-w-6xl mx-auto p-4">
+      {/* -------- Загрузка -------- */}
       <CldUploadWidget
         uploadPreset="FabiLinda_preset_1"
         onSuccess={handleUpload}
@@ -117,27 +127,28 @@ export function ImageUploader2({
         )}
       </CldUploadWidget>
 
-      {uploadedImages.length > 0 && (
+      {!!images.length && (
         <div className="w-full">
-          <Tabs defaultValue="preview" className="w-full">
+          <Tabs defaultValue="preview">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="preview">Предпросмотр</TabsTrigger>
               <TabsTrigger value="gallery">
-                Галерея ({uploadedImages.length})
+                Галерея ({images.length})
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="preview" className="w-full">
-              {selectedImageIndex !== null ? (
+            {/* ------------------------ PREVIEW ------------------------ */}
+            <TabsContent value="preview">
+              {current !== null ? (
                 <div className="flex flex-col items-center space-y-4 mt-4">
-                  <div className="flex items-center space-x-2 mb-2">
+                  <div className="flex items-center space-x-2">
                     <Switch
-                      id="show-original"
+                      id="toggle-original"
                       checked={showOriginal}
                       onCheckedChange={setShowOriginal}
                     />
                     <Label
-                      htmlFor="show-original"
+                      htmlFor="toggle-original"
                       className="flex items-center"
                     >
                       {showOriginal ? (
@@ -148,54 +159,42 @@ export function ImageUploader2({
                       ) : (
                         <>
                           <EyeOffIcon className="h-4 w-4 mr-2" />
-                          Показать с удаленным фоном
+                          Показать с удалённым фоном
                         </>
                       )}
                     </Label>
                   </div>
 
-                  <div className="relative border rounded-lg p-4 shadow-sm w-full max-w-2xl">
-                    {/* Шахматный фон для прозрачных изображений */}
-                    <div
-                      className="absolute inset-0 m-4 rounded-lg"
-                      style={{
-                        backgroundImage:
-                          "linear-gradient(45deg, #f0f0f0 25%, transparent 25%), linear-gradient(-45deg, #f0f0f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #f0f0f0 75%), linear-gradient(-45deg, transparent 75%, #f0f0f0 75%)",
-                        backgroundSize: "20px 20px",
-                        backgroundPosition:
-                          "0 0, 0 10px, 10px -10px, -10px 0px",
-                        zIndex: 0,
-                      }}
-                    />
+                  {/* ---- картинка ---- */}
+                  {(() => {
+                    const img = images[current];
+                    // ограничиваем превью 1000px по ширине, но это только для экрана
+                    const maxW = 1000;
+                    const w = Math.min(img.width, maxW);
+                    const h = Math.round((img.height * w) / img.width);
 
-                    <CldImage
-                      src={uploadedImages[selectedImageIndex].publicId}
-                      width={800}
-                      height={600}
-                      crop="limit"
-                      alt={`Selected Image`}
-                      className="rounded-lg shadow-md mx-auto relative z-10"
-                      removeBackground={!showOriginal}
-                      backgroundColor={
-                        !preserveTransparency && backgroundColor
-                          ? backgroundColor
-                          : undefined
-                      }
-                    />
-                  </div>
+                    return (
+                      <CldImage
+                        src={img.publicId}
+                        width={w}
+                        height={h}
+                        sizes={`${w}px`}
+                        unoptimized
+                        removeBackground={!showOriginal}
+                        background={
+                          !preserveTransparency
+                            ? cldColor(backgroundColor)
+                            : undefined
+                        }
+                        alt="Preview"
+                        className="rounded-lg shadow-md"
+                      />
+                    );
+                  })()}
 
-                  <Button
-                    onClick={downloadImage}
-                    className="mt-4"
-                    variant="default"
-                    disabled={isDownloading}
-                  >
+                  <Button onClick={download} disabled={busy} className="mt-2">
                     <Download className="h-4 w-4 mr-2" />
-                    {isDownloading
-                      ? "Подготовка изображения..."
-                      : `Скачать ${
-                          showOriginal ? "оригинал" : "с удаленным фоном"
-                        }`}
+                    {busy ? "Подготовка…" : "Скачать"}
                   </Button>
                 </div>
               ) : (
@@ -208,40 +207,48 @@ export function ImageUploader2({
               )}
             </TabsContent>
 
-            <TabsContent value="gallery" className="w-full">
+            {/* ------------------------ GALLERY ------------------------ */}
+            <TabsContent value="gallery">
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
-                {uploadedImages.map((image, index) => (
-                  <div
-                    key={index}
-                    className={`relative border rounded-lg p-2 shadow-sm cursor-pointer transition-all ${
-                      selectedImageIndex === index ? "ring-2 ring-primary" : ""
-                    }`}
-                    onClick={() => setSelectedImageIndex(index)}
-                  >
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      className="absolute -top-2 -right-2 h-6 w-6 z-10"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeImage(index);
-                      }}
+                {images.map((img, idx) => {
+                  const thumbW = 200;
+                  const thumbH = Math.round((img.height * thumbW) / img.width);
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => setCurrent(idx)}
+                      className={`relative border rounded-lg p-2 shadow-sm cursor-pointer transition ${
+                        current === idx ? "ring-2 ring-primary" : ""
+                      }`}
                     >
-                      <X className="h-4 w-4" />
-                    </Button>
-                    <CldImage
-                      src={image.publicId}
-                      width={200}
-                      height={150}
-                      crop="fill"
-                      alt={`Image ${index + 1}`}
-                      className="rounded-lg shadow-sm"
-                    />
-                    <p className="text-xs text-center mt-2 text-muted-foreground truncate">
-                      {image.publicId.split("/").pop()}
-                    </p>
-                  </div>
-                ))}
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          remove(idx);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+
+                      <CldImage
+                        src={img.publicId}
+                        width={thumbW}
+                        height={thumbH}
+                        sizes={`${thumbW}px`}
+                        unoptimized
+                        alt={`thumb-${idx}`}
+                        className="rounded-lg shadow-sm"
+                      />
+
+                      <p className="text-xs text-center mt-1 truncate">
+                        {img.publicId.split("/").pop()}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </TabsContent>
           </Tabs>
@@ -250,3 +257,10 @@ export function ImageUploader2({
     </div>
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Ключевые изменения                                                        */
+/*  • cldColor(): '#ff0000' → 'rgb:ff0000'   →  b_rgb:ff0000                  */
+/*  • removeBackground без указания width/height при скачивании               */
+/*  • оригинальный размер файла сохраняется, превью лишь масштабируется       */
+/* -------------------------------------------------------------------------- */
