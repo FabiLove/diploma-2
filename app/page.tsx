@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import Sidebar2 from "./components/Sidebar2";
 
@@ -8,15 +7,8 @@ export default function Home() {
   // Состояние для отслеживания выбранной опции
   const [selectedOption, setSelectedOption] = useState(1); // По умолчанию выбрана Опция 1
 
-  // Обработчик изменения опции
-  const handleOptionChange = (optionId) => {
-    setSelectedOption(optionId);
-  };
-
   return (
     <div>
-      <Navbar onOptionChange={handleOptionChange} />
-
       {/* Отображаем Sidebar только если выбрана Опция 1 */}
       {selectedOption === 1 && <Sidebar />}
 

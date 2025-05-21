@@ -1,7 +1,3 @@
-/* -------------------------------------------------------------------------- */
-/*  File: /app/components/imageUploader2.tsx                                  */
-/* -------------------------------------------------------------------------- */
-
 "use client";
 
 import { useState } from "react";
@@ -13,24 +9,32 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
 /* --------------------------- типы и утилиты -------------------------------- */
+interface CloudinaryInfo {
+  public_id: string;
+  secure_url: string;
+  original_filename: string;
+  width: number;
+  height: number;
+}
+type CloudinaryWidgetResult = { info: CloudinaryInfo | CloudinaryInfo[] };
+
 type ImageEntry = {
   publicId: string;
   url: string;
   width: number;
   height: number;
+  originalName: string;
 };
 
-/** Приводит цвет к формату, который Cloudinary ожидает в background-трансформации */
-const cldColor = (color: string): string | undefined => {
-  if (!color) return undefined;
-  const clean = color.replace("#", "").trim();
+const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 
-  // если hex-код из 3 или 6 символов – добавляем префикс rgb:
-  if (/^[0-9a-f]{6}$/i.test(clean) || /^[0-9a-f]{3}$/i.test(clean)) {
-    return `rgb:${clean}`;
-  }
-  // иначе оставляем как есть (например, 'white')
-  return clean;
+const cldColor = (color: string): string | undefined => {
+  const clean = color.replace("#", "").trim();
+  return /^[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(clean) ? `rgb:${clean}` : clean;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -51,37 +55,42 @@ export function ImageUploader2({
   const [busy, setBusy] = useState(false);
 
   /* ------------------------------ upload ---------------------------------- */
-  const handleUpload = (res: any) => {
-    const make = (i: any): ImageEntry => ({
+  const handleUpload = (result: unknown): void => {
+    const isValid = (r: unknown): r is CloudinaryWidgetResult =>
+      !!r && typeof r === "object" && "info" in r && r.info !== undefined;
+
+    if (!isValid(result)) return;
+
+    const make = (i: CloudinaryInfo): ImageEntry => ({
       publicId: i.public_id,
       url: i.secure_url,
       width: i.width,
       height: i.height,
+      originalName: i.original_filename || i.public_id.split("/").pop()!,
     });
 
-    const batch: ImageEntry[] = Array.isArray(res.info)
-      ? res.info.map(make)
-      : [make(res.info)];
+    const batch = Array.isArray(result.info)
+      ? result.info.map(make)
+      : [make(result.info)];
 
     setImages((p) => [...p, ...batch]);
     if (current === null) setCurrent(0);
   };
 
-  const remove = (idx: number) => {
+  const remove = (idx: number): void => {
     setImages((p) => p.filter((_, i) => i !== idx));
     if (current === idx) setCurrent(null);
     else if ((current ?? 0) > idx) setCurrent((s) => (s ?? 0) - 1);
   };
 
   /* ----------------------------- download --------------------------------- */
-  const download = async () => {
+  const download = async (): Promise<void> => {
     if (current === null) return;
     setBusy(true);
 
     try {
-      const { publicId } = images[current];
+      const { publicId, originalName } = images[current];
 
-      /* --- URL без ресайза: сохраняем оригинал --- */
       const url = getCldImageUrl({
         src: publicId,
         removeBackground: !showOriginal,
@@ -94,7 +103,7 @@ export function ImageUploader2({
       const blob = await fetch(url).then((r) => r.blob());
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `bg-removed-${publicId.split("/").pop()}.${downloadFormat}`;
+      a.download = `bg-removed-${slugify(originalName)}.${downloadFormat}`;
       a.click();
       URL.revokeObjectURL(a.href);
     } finally {
@@ -105,7 +114,6 @@ export function ImageUploader2({
   /* ------------------------------- JSX ------------------------------------ */
   return (
     <div className="flex flex-col items-center space-y-4 w-full max-w-6xl mx-auto p-4">
-      {/* -------- Загрузка -------- */}
       <CldUploadWidget
         uploadPreset="FabiLinda_preset_1"
         onSuccess={handleUpload}
@@ -117,7 +125,7 @@ export function ImageUploader2({
       >
         {({ open }) => (
           <div className="space-y-4">
-            <Button onClick={() => open()} className="w-full">
+            <Button onClick={() => open()} className="w-full rounded-none">
               Загрузить изображения
             </Button>
             <p className="text-sm text-muted-foreground text-center">
@@ -165,10 +173,8 @@ export function ImageUploader2({
                     </Label>
                   </div>
 
-                  {/* ---- картинка ---- */}
                   {(() => {
                     const img = images[current];
-                    // ограничиваем превью 1000px по ширине, но это только для экрана
                     const maxW = 1000;
                     const w = Math.min(img.width, maxW);
                     const h = Math.round((img.height * w) / img.width);
@@ -187,18 +193,22 @@ export function ImageUploader2({
                             : undefined
                         }
                         alt="Preview"
-                        className="rounded-lg shadow-md"
+                        className="shadow-md"
                       />
                     );
                   })()}
 
-                  <Button onClick={download} disabled={busy} className="mt-2">
+                  <Button
+                    onClick={download}
+                    disabled={busy}
+                    className="mt-2 rounded-none"
+                  >
                     <Download className="h-4 w-4 mr-2" />
                     {busy ? "Подготовка…" : "Скачать"}
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center h-64 border rounded-lg mt-4">
+                <div className="flex flex-col items-center justify-center h-64 border rounded-none mt-4">
                   <ImageIcon className="h-16 w-16 text-muted-foreground/50" />
                   <p className="text-muted-foreground mt-4">
                     Выберите изображение из галереи
@@ -217,14 +227,14 @@ export function ImageUploader2({
                     <div
                       key={idx}
                       onClick={() => setCurrent(idx)}
-                      className={`relative border rounded-lg p-2 shadow-sm cursor-pointer transition ${
+                      className={`relative border rounded-none p-2 shadow-sm cursor-pointer transition ${
                         current === idx ? "ring-2 ring-primary" : ""
                       }`}
                     >
                       <Button
                         variant="destructive"
                         size="icon"
-                        className="absolute -top-2 -right-2 h-6 w-6"
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-none"
                         onClick={(e) => {
                           e.stopPropagation();
                           remove(idx);
@@ -240,11 +250,11 @@ export function ImageUploader2({
                         sizes={`${thumbW}px`}
                         unoptimized
                         alt={`thumb-${idx}`}
-                        className="rounded-lg shadow-sm"
+                        className="shadow-sm"
                       />
 
                       <p className="text-xs text-center mt-1 truncate">
-                        {img.publicId.split("/").pop()}
+                        {img.originalName}
                       </p>
                     </div>
                   );
@@ -257,10 +267,3 @@ export function ImageUploader2({
     </div>
   );
 }
-
-/* -------------------------------------------------------------------------- */
-/*  Ключевые изменения                                                        */
-/*  • cldColor(): '#ff0000' → 'rgb:ff0000'   →  b_rgb:ff0000                  */
-/*  • removeBackground без указания width/height при скачивании               */
-/*  • оригинальный размер файла сохраняется, превью лишь масштабируется       */
-/* -------------------------------------------------------------------------- */

@@ -1,74 +1,100 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  CldImage,
-  CldUploadWidget,
-  getCldImageUrl, // ⬅️  новый helper для скачивания
-} from "next-cloudinary";
+import { CldImage, CldUploadWidget, getCldImageUrl } from "next-cloudinary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X, Download } from "lucide-react";
 import JSZip from "jszip";
 
-type ImageUploaderProps = {
+/* -------------------------------------------------------------------------- */
+/*  Типы                                                                     */
+/* -------------------------------------------------------------------------- */
+
+interface CloudinaryInfo {
+  public_id: string;
+  secure_url: string;
+  original_filename: string;
+  width: number;
+  height: number;
+}
+type CloudinaryWidgetResult = { info: CloudinaryInfo | CloudinaryInfo[] };
+
+type Uploaded = {
+  publicId: string;
+  originalUrl: string;
+  originalName: string;
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Утилита                                                                   */
+/* -------------------------------------------------------------------------- */
+
+const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+/* -------------------------------------------------------------------------- */
+/*  Компонент                                                                 */
+/* -------------------------------------------------------------------------- */
+
+interface ImageUploaderProps {
   width: number;
   height: number;
   aspectRatio: string;
   mode: "dimensions" | "aspectRatio";
-};
+}
 
 export function ImageUploader({ width, height }: ImageUploaderProps) {
-  const [uploadedImages, setUploadedImages] = useState<
-    { publicId: string; originalUrl: string }[]
-  >([]);
+  const [uploadedImages, setUploadedImages] = useState<Uploaded[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
   const imageRefs = useRef<Record<number, HTMLImageElement | null>>({});
 
-  /* ---------------------------------------------------------------------- */
-  /*  Загрузка                                                              */
-  /* ---------------------------------------------------------------------- */
-  const handleUpload = (result: any) => {
-    // Cloudinary может вернуть один файл или массив
-    const makeEntry = (id: string, url: string) => ({
-      publicId: id,
-      originalUrl: url,
-    });
+  /* ------------------------------- upload --------------------------------- */
 
-    if (Array.isArray(result.info.secure_url)) {
-      const batch = result.info.public_id.map((id: string, i: number) =>
-        makeEntry(id, result.info.secure_url[i])
-      );
-      setUploadedImages((prev) => [...prev, ...batch]);
-    } else {
-      setUploadedImages((prev) => [
-        ...prev,
-        makeEntry(result.info.public_id, result.info.secure_url),
-      ]);
-    }
+  const toUploaded = (a: CloudinaryInfo): Uploaded => ({
+    publicId: a.public_id,
+    originalUrl: a.secure_url,
+    originalName:
+      a.original_filename || a.public_id.split("/").pop() || "image",
+  });
+
+  const handleUpload = (result: unknown): void => {
+    /*  `onSuccess` из next-cloudinary присылает объект { info: ... }.
+        Используем type-guard вместо `any`. */
+    const isValid = (r: unknown): r is CloudinaryWidgetResult =>
+      !!r && typeof r === "object" && "info" in r && r.info !== undefined;
+
+    if (!isValid(result)) return;
+
+    const batch = Array.isArray(result.info)
+      ? result.info.map(toUploaded)
+      : [toUploaded(result.info)];
+
+    setUploadedImages((prev) => [...prev, ...batch]);
   };
 
-  const removeImage = (idx: number) =>
+  const removeImage = (idx: number): void =>
     setUploadedImages((prev) => prev.filter((_, i) => i !== idx));
 
-  /* ---------------------------------------------------------------------- */
-  /*  Скачивание                                                             */
-  /* ---------------------------------------------------------------------- */
-  const downloadImages = async () => {
+  /* ------------------------------ download -------------------------------- */
+
+  const downloadImages = async (): Promise<void> => {
     if (!uploadedImages.length) return;
     setIsDownloading(true);
 
     try {
       const zip = new JSZip();
 
-      // для каждой загруженной картинки собираем «правильный» URL
       await Promise.all(
-        uploadedImages.map(async ({ publicId }, i) => {
-          const fileName = `${
-            publicId.split("/").pop() || "image"
-          }-${width}x${height}.jpg`;
+        uploadedImages.map(async ({ publicId, originalName }, i) => {
+          const index = String(i + 1).padStart(2, "0");
+          const fileName = `${index}-${slugify(
+            originalName
+          )}-${width}x${height}.jpg`;
 
-          // генерируем прямой линк на Cloudinary
           const url = getCldImageUrl({
             src: publicId,
             width,
@@ -77,7 +103,6 @@ export function ImageUploader({ width, height }: ImageUploaderProps) {
             format: "jpg",
           });
 
-          // скачиваем файл и кладём в zip
           const blob = await fetch(url).then((res) => res.blob());
           zip.file(fileName, blob);
         })
@@ -97,12 +122,10 @@ export function ImageUploader({ width, height }: ImageUploaderProps) {
     }
   };
 
-  /* ---------------------------------------------------------------------- */
-  /*  JSX                                                                    */
-  /* ---------------------------------------------------------------------- */
+  /* -------------------------------- JSX ----------------------------------- */
+
   return (
     <div className="flex flex-col items-center space-y-4 w-full max-w-6xl mx-auto p-4">
-      {/* ---------- Загрузка ---------- */}
       <CldUploadWidget
         uploadPreset="FabiLinda_preset_1"
         onSuccess={handleUpload}
@@ -114,7 +137,7 @@ export function ImageUploader({ width, height }: ImageUploaderProps) {
       >
         {({ open }) => (
           <div className="space-y-4">
-            <Button onClick={() => open()} className="w-full">
+            <Button onClick={() => open()} className="w-full rounded-none">
               Загрузить изображения
             </Button>
             <p className="text-sm text-muted-foreground text-center">
@@ -124,7 +147,6 @@ export function ImageUploader({ width, height }: ImageUploaderProps) {
         )}
       </CldUploadWidget>
 
-      {/* ---------- Галерея / список ---------- */}
       {!!uploadedImages.length && (
         <>
           <Tabs defaultValue="grid" className="w-full">
@@ -139,32 +161,33 @@ export function ImageUploader({ width, height }: ImageUploaderProps) {
                 {uploadedImages.map((img, idx) => (
                   <div
                     key={idx}
-                    className="relative border rounded-lg p-3 shadow-sm"
+                    className="relative border rounded-none p-3 shadow-sm"
                   >
                     <Button
                       variant="destructive"
                       size="icon"
-                      className="absolute -top-2 -right-2 h-6 w-6 z-10"
+                      className="absolute -top-2 -right-2 h-6 w-6 z-10 rounded-none"
                       onClick={() => removeImage(idx)}
                     >
                       <X className="h-4 w-4" />
                     </Button>
 
-                    {/* --- главное отличие: фиксируем sizes и unoptimized --- */}
                     <CldImage
                       src={img.publicId}
                       width={width}
                       height={height}
                       crop={{ type: "fill", gravity: "auto", source: true }}
                       sizes={`${width}px`}
-                      unoptimized /* -> без responsive-srcset */
+                      unoptimized
                       alt={`Image ${idx + 1}`}
-                      className="rounded-lg shadow-md mx-auto"
-                      ref={(el) => (imageRefs.current[idx] = el)}
+                      className="shadow-md mx-auto"
+                      ref={(el) => {
+                        imageRefs.current[idx] = el;
+                      }}
                     />
 
                     <p className="text-xs text-center mt-2 text-muted-foreground truncate">
-                      {img.publicId.split("/").pop()}
+                      {img.originalName}
                     </p>
                   </div>
                 ))}
@@ -177,12 +200,12 @@ export function ImageUploader({ width, height }: ImageUploaderProps) {
                 {uploadedImages.map((img, idx) => (
                   <div
                     key={idx}
-                    className="flex flex-col md:flex-row gap-4 border rounded-lg p-4 relative"
+                    className="flex flex-col md:flex-row gap-4 border rounded-none p-4 relative"
                   >
                     <Button
                       variant="destructive"
                       size="icon"
-                      className="absolute top-2 right-2 h-6 w-6"
+                      className="absolute top-2 right-2 h-6 w-6 rounded-none"
                       onClick={() => removeImage(idx)}
                     >
                       <X className="h-4 w-4" />
@@ -197,13 +220,15 @@ export function ImageUploader({ width, height }: ImageUploaderProps) {
                         sizes={`${width}px`}
                         unoptimized
                         alt={`Image ${idx + 1}`}
-                        className="rounded-lg shadow-md"
-                        ref={(el) => (imageRefs.current[idx] = el)}
+                        className="shadow-md"
+                        ref={(el) => {
+                          imageRefs.current[idx] = el;
+                        }}
                       />
                     </div>
 
                     <div className="flex-grow">
-                      <h3 className="font-medium">Изображение {idx + 1}</h3>
+                      <h3 className="font-medium">{img.originalName}</h3>
                       <p className="text-sm text-muted-foreground break-all">
                         ID: {img.publicId}
                       </p>
@@ -217,11 +242,9 @@ export function ImageUploader({ width, height }: ImageUploaderProps) {
             </TabsContent>
           </Tabs>
 
-          {/* ---------- Кнопка «Скачать всё» ---------- */}
           <Button
             onClick={downloadImages}
-            className="mt-4"
-            variant="default"
+            className="mt-4 rounded-none"
             disabled={isDownloading}
           >
             <Download className="h-4 w-4 mr-2" />
